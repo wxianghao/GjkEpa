@@ -43,6 +43,50 @@ void handleSimplexTri(Simplex &simplex, Vec3 &closest)
 
     Vec3 AC = C - A;
     Vec3 BC = C - B;
+    Vec3 AB = B - A;
+
+    // Choose the smaller edge to compute the plane ABC's normal
+    Real dAC     = AC.dot(AC);
+    Real dBC     = BC.dot(BC);
+    Vec3 shorter = dAC < dBC ? AC : BC;
+    Vec3 normal  = AB.cross(shorter);
+
+    // Origin's position relative to the edges
+    bool outsideAC = normal.cross(AC).dot(C) <= 0;
+    bool outsideBC = BC.cross(normal).dot(C) <= 0;
+
+    // Case 1: origin's projection falls inside ABC
+    if (!outsideAC && !outsideBC) {
+        Real x  = normal.dot(C);
+        closest = normal * (x / normal.dot(normal));
+        // Ensure the normal always points the origin
+        if (x < 0) {
+            // Equiv. to:
+            // simplex = {A, B, C};
+        }
+        else {
+            simplex = {B, A, C};
+        }
+        return;
+    }
+
+    // Case 2: origin projects outside ABC, but falls on region of either BC or AC
+    Real pBC = BC.dot(C);
+    Real pAC = AC.dot(C);
+    if (outsideBC && pBC > 0) {
+        closest = C - BC * (pBC / dBC);
+        simplex = {B, C};
+        return;
+    }
+    if (outsideAC && pAC > 0) {
+        closest = C - AC * (pAC / dAC);
+        simplex = {A, C};
+        return;
+    }
+
+    // Case 3: origin projects on the apex region
+    closest = C;
+    simplex = {C};
 }
 
 void handleSimplex(Simplex &simplex, Vec3 &closest)

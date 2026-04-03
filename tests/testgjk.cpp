@@ -11,6 +11,13 @@ std::string vecstr(const Vec3 &v)
     return oss.str();
 }
 
+void transformSimplex(const Eigen::Matrix3f &trans, Simplex &simplex)
+{
+    for (auto &v : simplex.verts) {
+        v = trans * v;
+    }
+}
+
 TEST_SUITE("GJK helper functions")
 {
     TEST_CASE("handleSimplexLine()")
@@ -55,5 +62,94 @@ TEST_SUITE("GJK helper functions")
         REQUIRE(closest.isApprox(correct));
     }
 
-    TEST_CASE("handleSimplexTri()") {}
+    TEST_CASE("handleSimplexTri()")
+    {
+        Simplex simplex;
+        Vec3    closest;
+        Vec3    correct;
+
+        SUBCASE("Inside triangle")
+        {
+            simplex = {{5.75, 1.04, 3.14}, {-1.34, -6.2, 3.14}, {-5.13, 4.43, 3.14}};
+            correct = {0, 0, 3.14};
+            SUBCASE("Plane") {}
+            SUBCASE("Rotated")
+            {
+                auto randomQ = Eigen::Quaterniond::UnitRandom();
+                auto rotate  = randomQ.toRotationMatrix().cast<Real>();
+                correct      = rotate * correct;
+                transformSimplex(rotate, simplex);
+            }
+
+            // Check correct normal direction
+            auto A      = simplex.verts[0];
+            auto B      = simplex.verts[1];
+            auto C      = simplex.verts[2];
+            auto normal = (B - A).cross(C - A);
+            REQUIRE(normal.dot(C) <= 0);
+        }
+
+        SUBCASE("Edge AC")
+        {
+            simplex = {
+                {3.56, -0.34, -1.2},
+                {4.57, 2.42, -1.2},
+                {-2.02, 4, -1.2},
+            };
+            correct = {1.17707692, 1.51338462, -1.2};
+            SUBCASE("Plane") {}
+            SUBCASE("Rotated")
+            {
+                auto randomQ = Eigen::Quaterniond::UnitRandom();
+                auto rotate  = randomQ.toRotationMatrix().cast<Real>();
+                correct      = rotate * correct;
+                transformSimplex(rotate, simplex);
+            }
+        }
+
+        SUBCASE("Edge BC")
+        {
+            simplex = {{10, 10, 0.05}, {3, 0, 0.05}, {-5, 4, 0.05}};
+            correct = {0.6, 1.2, 0.05};
+            SUBCASE("Plane") {}
+            SUBCASE("Rotated")
+            {
+                auto randomQ = Eigen::Quaterniond::UnitRandom();
+                auto rotate  = randomQ.toRotationMatrix().cast<Real>();
+                correct      = rotate * correct;
+                transformSimplex(rotate, simplex);
+            }
+        }
+
+        SUBCASE("Apex")
+        {
+            simplex = {{5, 10, 19}, {15, 3, 19}, {2, 1, 19}};
+            correct = {2, 1, 19};
+            SUBCASE("Plane") {}
+            SUBCASE("Rotated")
+            {
+                auto randomQ = Eigen::Quaterniond::UnitRandom();
+                auto rotate  = randomQ.toRotationMatrix().cast<Real>();
+                correct      = rotate * correct;
+                transformSimplex(rotate, simplex);
+            }
+        }
+
+        SUBCASE("Exact apex")
+        {
+            simplex = {{2, 6.6, 0}, {5.2, 2.1, 0}, {0, 0, 0}};
+            correct = {0, 0, 0};
+        }
+
+
+        handleSimplexTri(simplex, closest);
+
+        // Ensure correct closest point
+        INFO("simplex A: ", vecstr(simplex.verts[0]));
+        INFO("simplex B: ", vecstr(simplex.verts[1]));
+        INFO("simplex C: ", vecstr(simplex.verts[2]));
+        INFO("closest: ", vecstr(closest));
+        INFO("correct: ", vecstr(correct));
+        REQUIRE(closest.isApprox(correct));
+    }
 }

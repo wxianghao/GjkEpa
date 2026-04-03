@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <vector>
 
 #define MAX_GJK_ITERS 30
@@ -51,3 +52,4 @@ struct Simplex
 };
 
 void handleSimplexLine(Simplex &simplex, Vec3 &closest);
+void handleSimplexTri(Simplex &simplex, Vec3 &closest);
