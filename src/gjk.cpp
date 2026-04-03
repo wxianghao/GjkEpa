@@ -1,0 +1,110 @@
+#include "common.hpp"
+#include "gjkepa.hpp"
+
+Vec3 support_gjk(const Polytope &A, const Vec3 &direction)
+{
+    int  idx = -1;
+    Real len = Eigen::NumTraits<Real>::lowest();
+
+    for (int i = 0; i < A.verts.size(); ++i) {
+        Real t = A.verts[i].dot(direction);
+        if (t > len) {
+            idx = i;
+            len = t;
+        }
+    }
+
+    return A.verts[idx];
+}
+
+void handleSimplexLine(Simplex &simplex, Vec3 &closest)
+{
+    const Vec3 &A = simplex.verts[0];
+    const Vec3 &B = simplex.verts[1];
+
+    Vec3 AB = B - A;
+    Real pB = B.dot(AB);
+
+    // O is in the B region
+    if (pB < 0) {
+        closest = B;
+        simplex = {B};
+        return;
+    }
+
+    closest = B - AB * pB / AB.dot(AB);
+}
+
+void handleSimplexTri(Simplex &simplex, Vec3 &closest)
+{
+    const Vec3 &A = simplex.verts[0];
+    const Vec3 &B = simplex.verts[1];
+    const Vec3 &C = simplex.verts[2];
+
+    Vec3 AC = C - A;
+    Vec3 BC = C - B;
+}
+
+void handleSimplex(Simplex &simplex, Vec3 &closest)
+{
+    switch (simplex.verts.size()) {
+    case 1:
+        closest = -closest;
+        return;
+    case 2:
+        handleSimplexLine(simplex, closest);
+        return;
+    }
+}
+
+
+void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance, const Vec3 *initDirection = nullptr)
+{
+    Vec3 closest;
+    int  k       = 0;
+    Real normMax = 0.f;
+
+    // Initialize direction
+    if (initDirection == nullptr) {
+        closest = A.verts[0] - B.verts[0];
+    }
+    else {
+        closest = support_gjk(A, *initDirection) - support_gjk(B, -*initDirection);
+    }
+
+    simplex.verts.clear();
+    simplex.verts.push_back(closest);
+
+    do {
+        // Exit condition: the nearest point approaches the origin
+        if (closest.dot(closest) < abstol * abstol) {
+            break;
+        }
+
+        // Calculate support point
+        Vec3 support = support_gjk(A, -closest) - support_gjk(B, closest);
+
+        // Exit condition: the new simplex vertex cannot move further
+        if (closest.dot(closest) - support.dot(closest) < abstol) {
+            break;
+        }
+
+        // Add new vertex to the simplex
+        simplex.verts.push_back(support);
+
+        // Determine the new closest point
+        handleSimplex(simplex, closest);
+
+        // Exit condition: the nearest point approaches the origin in terms of very large simplex shape
+        for (const auto &v : simplex.verts) {
+            normMax = Eigen::numext::maxi(normMax, v.dot(v));
+        }
+        if (closest.dot(closest) <= abstol * abstol * normMax) {
+            break;
+        }
+
+        ++k;
+    } while (k < MAX_GJK_ITERS);
+
+    distance = closest.norm();
+}
