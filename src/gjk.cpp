@@ -1,3 +1,10 @@
+#include <cassert>
+#include <cstdio>
+#include <iostream>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+
 #include "common.hpp"
 #include "gjkepa.hpp"
 
@@ -89,6 +96,100 @@ void handleSimplexTri(Simplex &simplex, Vec3 &closest)
     simplex = {C};
 }
 
+void handleSimplexTetra(Simplex &simplex, Vec3 &closest)
+{
+    const Vec3 &s0   = simplex.verts[0];
+    const Vec3 &s1   = simplex.verts[1];
+    const Vec3 &s2   = simplex.verts[2];
+    const Vec3 &apex = simplex.verts[3];
+
+    // Edges
+    Vec3 edge0 = apex - s0;
+    Vec3 edge1 = apex - s1;
+    Vec3 edge2 = apex - s2;
+
+    // Squared norm of edges pointing the apex
+    Real l0 = edge0.dot(edge0);
+    Real l1 = edge1.dot(edge1);
+    Real l2 = edge2.dot(edge2);
+
+    // Normals of each face
+    Vec3 shorter0 = l0 < l1 ? edge0 : edge1;
+    Vec3 shorter1 = l1 < l2 ? edge1 : edge2;
+    Vec3 shorter2 = l2 < l0 ? edge2 : edge0;
+    Vec3 normal0  = (s1 - s0).cross(shorter0);
+    Vec3 normal1  = (s2 - s1).cross(shorter1);
+    Vec3 normal2  = (s0 - s2).cross(shorter2);
+
+    // Origin's SDF from each face
+    Real a0 = normal0.dot(apex);
+    Real a1 = normal1.dot(apex);
+    Real a2 = normal2.dot(apex);
+
+    // Case 1: origin is inside the tetrahedron
+    if (a0 > 0 && a1 > 0 && a2 > 0) {
+        closest = Vec3{0, 0, 0};
+        return;
+    }
+
+    // Projection onto edges
+    Real p0 = edge0.dot(apex);
+    Real p1 = edge1.dot(apex);
+    Real p2 = edge2.dot(apex);
+
+    // Case 2: origin is in the apex region
+    if (p0 <= 0 && p1 <= 0 && p2 <= 0) {
+        closest = apex;
+        simplex = {apex};
+        return;
+    }
+
+
+    // Case 3: origin is in the edge region
+    Real u0 = normal0.cross(edge0).dot(apex);
+    Real u1 = normal1.cross(edge1).dot(apex);
+    Real u2 = normal2.cross(edge2).dot(apex);
+    Real w0 = normal0.cross(edge1).dot(apex);
+    Real w1 = normal1.cross(edge2).dot(apex);
+    Real w2 = normal2.cross(edge0).dot(apex);
+    if (u0 <= 0 && w2 > 0 && p0 >= 0) {
+        closest = apex - edge0 * (p0 / l0);
+        simplex = {apex, s0};
+        return;
+    }
+    if (u1 <= 0 && w0 > 0 && p1 >= 0) {
+        closest = apex - edge1 * (p1 / l1);
+        simplex = {apex, s1};
+        return;
+    }
+    if (u2 <= 0 && w1 > 0 && p2 >= 0) {
+        closest = apex - edge2 * (p2 / l2);
+        simplex = {apex, s2};
+        return;
+    }
+
+    // Case 4: origin is in the face region
+    if (u0 > 0 && w0 <= 0 && a0 <= 0) {
+        closest = normal0 * (a0 / normal0.dot(normal0));
+        simplex = {apex, s0, s1};
+        return;
+    }
+
+    if (u1 > 1 && w1 <= 0 && a1 <= 0) {
+        closest = normal1 * (a1 / normal1.dot(normal1));
+        simplex = {apex, s1, s2};
+        return;
+    }
+
+    if (u2 > 2 && w2 <= 0 && a2 <= 0) {
+        closest = normal2 * (a2 / normal2.dot(normal2));
+        simplex = {apex, s2, s0};
+        return;
+    }
+
+    assert(false);
+}
+
 void handleSimplex(Simplex &simplex, Vec3 &closest)
 {
     switch (simplex.verts.size()) {
@@ -98,6 +199,12 @@ void handleSimplex(Simplex &simplex, Vec3 &closest)
     case 2:
         handleSimplexLine(simplex, closest);
         return;
+    case 3:
+        handleSimplexTri(simplex, closest);
+    case 4:
+        handleSimplexTetra(simplex, closest);
+    default:
+        throw std::invalid_argument("Illegal simplex");
     }
 }
 
@@ -148,7 +255,7 @@ void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance,
         }
 
         ++k;
-    } while (k < MAX_GJK_ITERS);
+    } while (simplex.verts.size() == 4 || k < MAX_GJK_ITERS);
 
     distance = closest.norm();
 }

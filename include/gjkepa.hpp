@@ -51,5 +51,8 @@ struct Simplex
     }
 };
 
+#ifdef BUILD_TESTS
 void handleSimplexLine(Simplex &simplex, Vec3 &closest);
 void handleSimplexTri(Simplex &simplex, Vec3 &closest);
+void handleSimplexTetra(Simplex &simplex, Vec3 &closest);
+#endif

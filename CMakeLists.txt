@@ -15,5 +15,6 @@ target_link_libraries(gjkepa PUBLIC Eigen3::Eigen)
 # Build unit tests
 option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)
+    target_compile_definitions(gjkepa PUBLIC BUILD_TESTS)
     add_subdirectory(tests)
 endif()

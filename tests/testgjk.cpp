@@ -54,9 +54,10 @@ TEST_SUITE("GJK helper functions")
             correct = {-0.17990095565067743, -0.23989343696807275, 1.8512124751612373};
         }
 
-        handleSimplexLine(simplex, closest);
         INFO("simplex A: ", vecstr(simplex.verts[0]));
         INFO("simplex B: ", vecstr(simplex.verts[1]));
+
+        handleSimplexLine(simplex, closest);
         INFO("closest: ", vecstr(closest));
         INFO("correct: ", vecstr(correct));
         REQUIRE(closest.isApprox(correct));
@@ -142,12 +143,67 @@ TEST_SUITE("GJK helper functions")
         }
 
 
-        handleSimplexTri(simplex, closest);
-
-        // Ensure correct closest point
         INFO("simplex A: ", vecstr(simplex.verts[0]));
         INFO("simplex B: ", vecstr(simplex.verts[1]));
         INFO("simplex C: ", vecstr(simplex.verts[2]));
+        handleSimplexTri(simplex, closest);
+
+        // Ensure correct closest point
+        INFO("closest: ", vecstr(closest));
+        INFO("correct: ", vecstr(correct));
+        REQUIRE(closest.isApprox(correct));
+    }
+
+    TEST_CASE("handleSimplexTetra()")
+    {
+        Simplex simplex;
+        Vec3    closest;
+        Vec3    correct;
+
+        handleSimplexTetra(simplex, closest);
+
+        SUBCASE("Inside tetra")
+        {
+            simplex = {
+                {-2.92593, -2.25338, 0}, {3.21313, -0.99584, -1}, {-3, 2, -1.76271}, {-1.34325, 0.9676, 3.71282}};
+            correct = {0, 0, 0};
+        }
+
+        SUBCASE("Edge")
+        {
+            simplex = {{0.73248, 0.11043, -1.68946},
+                       {5.83595, -1.21708, -1},
+                       {3.29811, 2.54955, -1.76271},
+                       {1.18249, 0.04732, 3.4885}};
+            correct = {0.87281, 0.09075, -0.07475};
+        }
+
+        SUBCASE("Apex")
+        {
+            simplex = {{-2.49432, -0.44896, -1.68946},
+                       {5.83595, -1.21708, -1},
+                       {3.29811, 2.54955, -1.76271},
+                       {0, 0, -0.36963}};
+            correct = {0, 0, -0.36963};
+        }
+
+        SUBCASE("Face")
+        {
+            simplex = {{-0.44258, 1.15203, -1.68946},
+                       {5.83595, -1.21708, -1},
+                       {3.29811, 2.54955, -1.76271},
+                       {2.67042, 1.21494, 4.25063}};
+            correct = {0.44728, 1.1137, -0.2462};
+        }
+
+        INFO("simplex A: ", vecstr(simplex.verts[0]));
+        INFO("simplex B: ", vecstr(simplex.verts[1]));
+        INFO("simplex C: ", vecstr(simplex.verts[2]));
+        INFO("simplex D: ", vecstr(simplex.verts[3]));
+
+        handleSimplexTetra(simplex, closest);
+
+        // Ensure correct closest point
         INFO("closest: ", vecstr(closest));
         INFO("correct: ", vecstr(correct));
         REQUIRE(closest.isApprox(correct));
