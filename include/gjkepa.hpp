@@ -12,15 +12,17 @@ using Real = Eigen::Vector3f::Scalar;
 struct Polytope
 {
     std::vector<Vec3> verts;
-
+    Polytope() = default;
     Polytope(std::initializer_list<Vec3> verts_list)
         : verts{verts_list}
     {
-        if (verts_list.size() < 4) {
-            verts.clear();
-            throw std::invalid_argument("Polytope requires at least 4 vertices, got "
-                                        + std::to_string(verts_list.size()));
-        }
+    }
+
+    Polytope &operator=(std::initializer_list<Vec3> verts_list)
+    {
+        verts.clear();
+        verts.assign(verts_list.begin(), verts_list.end());
+        return *this;
     }
     ~Polytope() = default;
 };
@@ -32,19 +34,11 @@ struct Simplex
     Simplex(std::initializer_list<Vec3> verts_list)
         : verts{verts_list}
     {
-        if (verts_list.size() > 4) {
-            verts.clear();
-            throw std::invalid_argument("Simplex requires at most 4 vertices, got "
-                                        + std::to_string(verts_list.size()));
-        }
+        verts.clear();
     }
     ~Simplex() = default;
     Simplex &operator=(std::initializer_list<Vec3> verts_list)
     {
-        if (verts_list.size() > 4) {
-            throw std::invalid_argument("Simplex requires at most 4 vertices, got "
-                                        + std::to_string(verts_list.size()));
-        }
         verts.clear();
         verts.assign(verts_list.begin(), verts_list.end());
         return *this;
@@ -55,4 +49,5 @@ struct Simplex
 void handleSimplexLine(Simplex &simplex, Vec3 &closest);
 void handleSimplexTri(Simplex &simplex, Vec3 &closest);
 void handleSimplexTetra(Simplex &simplex, Vec3 &closest);
+void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance, const Vec3 *initDirection = nullptr);
 #endif

@@ -209,7 +209,7 @@ void handleSimplex(Simplex &simplex, Vec3 &closest)
 }
 
 
-void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance, const Vec3 *initDirection = nullptr)
+void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance, const Vec3 *initDirection)
 {
     Vec3 closest;
     int  k       = 0;
