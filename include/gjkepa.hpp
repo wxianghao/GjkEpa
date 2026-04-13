@@ -8,6 +8,8 @@
 
 using Vec3 = Eigen::Vector3f;
 using Real = Eigen::Vector3f::Scalar;
+// using Vec3 = Eigen::Vector3d;
+// using Real = Eigen::Vector3d::Scalar;
 
 struct Polytope
 {

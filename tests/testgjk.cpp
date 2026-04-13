@@ -12,7 +12,7 @@ std::string vecstr(const Vec3 &v)
     return oss.str();
 }
 
-void transformSimplex(const Eigen::Matrix3f &trans, Simplex &simplex)
+void transformSimplex(const Eigen::Matrix<Real, 3, 3> &trans, Simplex &simplex)
 {
     for (auto &v : simplex.verts) {
         v = trans * v;
