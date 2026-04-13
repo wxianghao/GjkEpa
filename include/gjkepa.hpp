@@ -34,7 +34,6 @@ struct Simplex
     Simplex(std::initializer_list<Vec3> verts_list)
         : verts{verts_list}
     {
-        verts.clear();
     }
     ~Simplex() = default;
     Simplex &operator=(std::initializer_list<Vec3> verts_list)

@@ -175,19 +175,19 @@ void handleSimplexTetra(Simplex &simplex, Vec3 &closest)
         return;
     }
 
-    if (u1 > 1 && w1 <= 0 && a1 <= 0) {
+    if (u1 > 0 && w1 <= 0 && a1 <= 0) {
         closest = normal1 * (a1 / normal1.dot(normal1));
         simplex = {apex, s1, s2};
         return;
     }
 
-    if (u2 > 2 && w2 <= 0 && a2 <= 0) {
+    if (u2 > 0 && w2 <= 0 && a2 <= 0) {
         closest = normal2 * (a2 / normal2.dot(normal2));
         simplex = {apex, s2, s0};
         return;
     }
 
-    assert(false);
+    throw std::runtime_error("Invalid tetrahedron simplex!");
 }
 
 void handleSimplex(Simplex &simplex, Vec3 &closest)
@@ -201,8 +201,10 @@ void handleSimplex(Simplex &simplex, Vec3 &closest)
         return;
     case 3:
         handleSimplexTri(simplex, closest);
+        return;
     case 4:
         handleSimplexTetra(simplex, closest);
+        return;
     default:
         throw std::invalid_argument("Illegal simplex");
     }
@@ -255,7 +257,7 @@ void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance,
         }
 
         ++k;
-    } while (simplex.verts.size() == 4 || k < MAX_GJK_ITERS);
+    } while (simplex.verts.size() < 4 && k < MAX_GJK_ITERS);
 
     distance = closest.norm();
 }

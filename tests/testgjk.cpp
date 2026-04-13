@@ -1,4 +1,5 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <fstream>
 #include <sstream>
 
 #include "doctest.h"
@@ -16,6 +17,56 @@ void transformSimplex(const Eigen::Matrix3f &trans, Simplex &simplex)
     for (auto &v : simplex.verts) {
         v = trans * v;
     }
+}
+
+static bool
+readDataset(const std::string &filename, Polytope *&polysA, Polytope *&polysB, Real *&distances, unsigned int &n)
+{
+    std::ifstream in{filename};
+
+    // Ensure the file is open
+    if (!in.is_open()) {
+        return false;
+    }
+
+    // Read the number of samples
+    in >> n;
+
+    // Allocate memory
+    polysA    = new Polytope[n];
+    polysB    = new Polytope[n];
+    distances = new Real[n];
+
+    // Read each sample
+    for (unsigned int i = 0; i < n; ++i) {
+        int   nA, nB;
+        auto &A = polysA[i];
+        auto &B = polysB[i];
+
+        // Read distance
+        in >> distances[i];
+
+        // Read first object
+        in >> nA;
+        A.verts.resize(nA);
+        for (int j = 0; j < nA; ++j) {
+            Real x, y, z;
+            in >> x >> y >> z;
+            A.verts[j] = {x, y, z};
+        }
+
+        // Read second object
+        in >> nB;
+        B.verts.resize(nB);
+        for (int j = 0; j < nB; ++j) {
+            Real x, y, z;
+            in >> x >> y >> z;
+            B.verts[j] = {x, y, z};
+        }
+    }
+
+    in.close();
+    return true;
 }
 
 TEST_SUITE("GJK helper functions")
@@ -207,5 +258,83 @@ TEST_SUITE("GJK helper functions")
         INFO("closest: ", vecstr(closest));
         INFO("correct: ", vecstr(correct));
         REQUIRE(closest.isApprox(correct));
+    }
+}
+
+static Polytope createCube(Real x, Real y, Real z, Real halfExtent)
+{
+    return {
+        Vec3(x - halfExtent, y - halfExtent, z - halfExtent),
+        Vec3(x + halfExtent, y - halfExtent, z - halfExtent),
+        Vec3(x - halfExtent, y + halfExtent, z - halfExtent),
+        Vec3(x + halfExtent, y + halfExtent, z - halfExtent),
+        Vec3(x - halfExtent, y - halfExtent, z + halfExtent),
+        Vec3(x + halfExtent, y - halfExtent, z + halfExtent),
+        Vec3(x - halfExtent, y + halfExtent, z + halfExtent),
+        Vec3(x + halfExtent, y + halfExtent, z + halfExtent),
+    };
+}
+
+
+TEST_SUITE("GJK")
+{
+    TEST_CASE("Single pair")
+    {
+        Polytope cubeA, cubeB;
+        Simplex  simplex;
+        Real     distance;
+        Real     correct;
+
+        SUBCASE("Touching boxes")
+        {
+            cubeA   = createCube(0, 0, 0, 2);
+            cubeB   = createCube(4, 0, 0, 2);
+            correct = 0.;
+        }
+
+        SUBCASE("Separate boxes")
+        {
+            cubeA   = createCube(0, 0, 0, 2);
+            cubeB   = createCube(5, 0, 0, 2);
+            correct = 1.;
+        }
+
+        gjk(cubeA, cubeB, simplex, distance);
+        for (auto &v : simplex.verts) {
+            INFO("simplex vertex: ", vecstr(v));
+        }
+        INFO("distance: ", distance);
+        INFO("correct: ", correct);
+        REQUIRE(distance == doctest::Approx(correct));
+    }
+
+    TEST_CASE("Batched pair")
+    {
+        unsigned int n;
+        Polytope    *polysA, *polysB;
+        Real        *corrects;
+        Real         distance;
+        Simplex      simplex;
+
+        readDataset("data/input_5000.txt", polysA, polysB, corrects, n);
+
+        for (unsigned int i = 0; i < n; ++i) {
+            auto A       = polysA[i];
+            auto B       = polysB[i];
+            Real correct = corrects[i];
+            gjk(A, B, simplex, distance);
+
+            INFO("Failed at ", i);
+            INFO("distance: ", distance);
+            INFO("correct: ", correct);
+            for (auto &v : simplex.verts) {
+                INFO("simplex vertex: ", vecstr(v));
+            }
+            REQUIRE(distance == doctest::Approx(correct));
+        }
+
+        delete[] polysA;
+        delete[] polysB;
+        delete[] corrects;
     }
 }
