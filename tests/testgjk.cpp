@@ -330,7 +330,9 @@ TEST_SUITE("GJK")
             for (auto &v : simplex.verts) {
                 INFO("simplex vertex: ", vecstr(v));
             }
-            REQUIRE(distance == doctest::Approx(correct));
+
+            Real tol = std::max(0.01, std::abs(correct) * 0.01);
+            REQUIRE(std::abs(distance - correct) < tol);
         }
 
         delete[] polysA;

@@ -217,6 +217,8 @@ void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance,
     int  k       = 0;
     Real normMax = 0.f;
 
+    simplex.verts.clear();
+
     // Initialize direction
     if (initDirection == nullptr) {
         closest = A.verts[0] - B.verts[0];
@@ -225,20 +227,16 @@ void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance,
         closest = support_gjk(A, *initDirection) - support_gjk(B, -*initDirection);
     }
 
-    simplex.verts.clear();
     simplex.verts.push_back(closest);
 
     do {
-        // Exit condition: the nearest point approaches the origin
-        if (closest.dot(closest) < abstol * abstol) {
-            break;
-        }
-
         // Calculate support point
         Vec3 support = support_gjk(A, -closest) - support_gjk(B, closest);
 
         // Exit condition: the new simplex vertex cannot move further
-        if (closest.dot(closest) - support.dot(closest) < abstol) {
+        Real closestNorm2 = closest.dot(closest);
+        Real exceedRel    = closestNorm2 - closest.dot(support);
+        if (exceedRel <= epsRel * closestNorm2 || exceedRel <= epsAbs || closestNorm2 <= epsRel * epsRel) {
             break;
         }
 
@@ -252,12 +250,12 @@ void gjk(const Polytope &A, const Polytope &B, Simplex &simplex, Real &distance,
         for (const auto &v : simplex.verts) {
             normMax = Eigen::numext::maxi(normMax, v.dot(v));
         }
-        if (closest.dot(closest) <= abstol * abstol * normMax) {
+        if (closest.dot(closest) <= epsAbs * epsAbs * normMax) {
             break;
         }
 
         ++k;
-    } while (simplex.verts.size() < 4 && k < MAX_GJK_ITERS);
+    } while (k < MAX_GJK_ITERS);
 
     distance = closest.norm();
 }
