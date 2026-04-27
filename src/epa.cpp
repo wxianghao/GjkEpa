@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdlib>
 #include <unordered_map>
 #include <unordered_set>
@@ -119,6 +120,23 @@ bool replaceTriangle(int apexIdx, int faceIdx, const std::vector<Vec3> &vertices
     return true;
 }
 
+int supportIndex(const Polytope &poly, const Vec3 &dir)
+{
+    int  bestIdx = -1;
+    Real bestVal = -inf;
+
+    for (int i = 0; i < poly.verts.size(); ++i) {
+        const auto &v   = poly.verts[i];
+        Real        val = v.dot(dir);
+        if (bestVal < val) {
+            bestVal = val;
+            bestIdx = i;
+        }
+    }
+
+    return bestIdx;
+}
+
 void epaStart4(const std::vector<Vec3> &vertices, std::vector<EPATriangle> &triangles)
 {
     triangles.clear();
@@ -142,24 +160,59 @@ void epaStart4(const std::vector<Vec3> &vertices, std::vector<EPATriangle> &tria
     }
 }
 
-void epaStart123(const std::vector<Vec3> &vertices, std::vector<EPATriangle> &triangles) {}
-
-int supportIndex(const Polytope &poly, const Vec3 &dir)
+Vec3 newPoint(const Polytope &A, const Polytope &B, std::vector<Vec3> &vertices, const Vec3 &dir, const Vec3 &ref)
 {
-    int  bestIdx = -1;
-    Real bestVal = -inf;
-
-    for (int i = 0; i < poly.verts.size(); ++i) {
-        const auto &v   = poly.verts[i];
-        Real        val = v.dot(dir);
-        if (bestVal < val) {
-            bestVal = val;
-            bestIdx = i;
-        }
+    Vec3 vp = A.verts[supportIndex(A, dir)] - B.verts[supportIndex(B, -dir)];
+    Vec3 vq = A.verts[supportIndex(A, -dir)] - B.verts[supportIndex(B, dir)];
+    if (abs((vp - ref).dot(dir)) > abs((vq - ref).dot(dir))) {
+        return vp;
     }
-
-    return bestIdx;
+    else {
+        return vq;
+    }
 }
+
+// void epaStart123(const Polytope &A, const Polytope &B, std::vector<Vec3> &vertices, std::vector<EPATriangle>
+// &triangles)
+// {
+//     if (vertices.size() == 1) {
+//         Vec3 v = {1, 0, 0};
+//         vertices.push_back(newPoint(A, B, vertices, v, vertices[0]));
+//     }
+
+//     if (vertices.size() == 2) {
+//         const Vec3 &p0 = vertices[0];
+//         const Vec3 &p1 = vertices[1];
+//         Vec3        v  = p1 - p0;
+
+//         if (abs(v.x()) < abs(v.y())) {
+//             v = Vec3{1, 0, 0}.cross(v);
+//         }
+//         else {
+//             v = Vec3{0, 1, 0}.cross(v);
+//         }
+
+//         vertices.push_back(newPoint(A, B, vertices, v, vertices[1]));
+//     }
+
+//     const Vec3 &p0  = vertices[0];
+//     const Vec3 &p1  = vertices[1];
+//     const Vec3 &p2  = vertices[2];
+//     Vec3        e01 = p1 - p0;
+//     Vec3        e02 = p2 - p0;
+//     Vec3        e12 = p2 - p1;
+
+//     Vec3 normal;
+//     if (e01.dot(e01) < e02.dot(e02)) {
+//         normal = e01.cross(e12);
+//     }
+//     else {
+//         normal = e02.cross(e12);
+//     }
+
+//     Real distance = normal.dot(p0);
+// }
+
 
 // //!: should use binary operations in GPU implementation
 // bool replaceTriangle(Vec3 &apex, int apexIdx, std::vector<EpaTriangle> &triangles, int closestIdx)
@@ -312,71 +365,117 @@ int supportIndex(const Polytope &poly, const Vec3 &dir)
 //     }
 // }
 
-// void epa(const Polytope &A, const Polytope &B, Simplex &simplex)
-// {
-//     Real lowerBound = -inf;
-//     Real upperBound = inf;
-//     int  nvertices;
+void epa(const Polytope &A, const Polytope &B, Simplex &simplex)
+{
+    std::vector<EPATriangle> triangles;
+    std::vector<Vec3>        vertices(simplex.verts.begin(), simplex.verts.end());
+    if (simplex.verts.size() == 4) {
+        epaStart4(vertices, triangles);
+    }
+    else {
+        throw std::runtime_error("Not implemented!");
+    }
 
-//     std::vector<EPATriangle> triangles;
-//     int                      bestFaceIdx = -1;
+    Real bestDist      = inf;
+    int  bestFace      = -1;
+    bool nondegenerate = true;
+    while (nondegenerate && vertices.size() < MAX_EPA_VERTS) {
+        // Search for the closest face to the origin
+        int  closestFace = 0;
+        Real distance    = triangles[0].distance;
+        for (size_t i = 1; i < triangles.size(); ++i) {
+            if (triangles[i].distance < distance) {
+                distance    = triangles[i].distance;
+                closestFace = i;
+            }
+        }
 
-//     if (simplex.verts.size() == 4) {
-//         epaStart4(simplex.verts, triangles);
-//         nvertices = 4;
-//     }
-//     else {
-//         throw std::runtime_error("Not implemented!");
-//     }
+        // Search for a new support point
+        Vec3 v    = triangles[closestFace].normal;
+        int  idxA = supportIndex(A, v), idxB = supportIndex(B, -v);
+        Vec3 apex = A.verts[idxA] - B.verts[idxB];
 
-//     bool nondegenerate = true;
-//     while (nondegenerate && nvertices < MAX_EPA_VERTS) {
-//         /* Find closest face */
-//         int  closestIdx = 0;
-//         Real distance   = triangles[0].distance;
-//         for (int i = 1; i < (int)triangles.size(); i++) {
-//             if (triangles[i].distance < distance) {
-//                 distance   = triangles[i].distance;
-//                 closestIdx = i;
-//             }
-//         }
+        Real apexDist = apex.dot(v);
+        if (abs(apexDist - distance) <= epsRel) {
+            bestFace = closestFace;
+            bestDist = distance;
+            break;
+        }
 
-//         /* Search for a new support point */
-//         Vec3 v       = triangles[closestIdx].normal;
-//         int  idxA    = supportIndex(A, v);
-//         int  idxB    = supportIndex(B, -v);
-//         Vec3 support = A.verts[idxA] - B.verts[idxB];
+        // if (distance > bestDist) {
+        //     break;
+        // }
 
-//         /* Check convergence */
-//         Real supportDistance = support.dot(v);
+        if (apexDist < bestDist)
+        {
+            
+        }
+    }
 
-//         // Check termination
-//         if (abs(supportDistance - distance) <= epsRel) {
-//             upperBound  = supportDistance;
-//             lowerBound  = distance;
-//             bestFaceIdx = closestIdx;
-//             break;
-//         }
 
-//         if (distance > upperBound) {
-//             break;
-//         }
+    // Real lowerBound = -inf;
+    // Real upperBound = inf;
+    // int  nvertices;
 
-//         // Check update
-//         if (supportDistance < upperBound) {
-//             upperBound  = supportDistance;
-//             lowerBound  = distance;
-//             bestFaceIdx = closestIdx;
-//         }
+    // std::vector<EPATriangle> triangles;
+    // int                      bestFaceIdx = -1;
 
-//         /* Add new vertex via reconstructing faces */
-//         bool nondegenerate = true;
-//         Vec3 apex          = support;
-//         if (supportDistance - distance < epsRel) {
-//             nondegenerate = false;
-//         }
+    // if (simplex.verts.size() == 4) {
+    //     epaStart4(simplex.verts, triangles);
+    //     nvertices = 4;
+    // }
+    // else {
+    //     throw std::runtime_error("Not implemented!");
+    // }
 
-//         // Reconstruct faces
-//         // replaceTriangle(, int faceIdx, const std::vector<Vec3> &vertices, std::vector<EPATriangle> &triangles)
-//     }
-// }
+    // bool nondegenerate = true;
+    // while (nondegenerate && nvertices < MAX_EPA_VERTS) {
+    //     /* Find closest face */
+    //     int  closestIdx = 0;
+    //     Real distance   = triangles[0].distance;
+    //     for (int i = 1; i < (int)triangles.size(); i++) {
+    //         if (triangles[i].distance < distance) {
+    //             distance   = triangles[i].distance;
+    //             closestIdx = i;
+    //         }
+    //     }
+
+    //     /* Search for a new support point */
+    //     Vec3 v       = triangles[closestIdx].normal;
+    //     int  idxA    = supportIndex(A, v);
+    //     int  idxB    = supportIndex(B, -v);
+    //     Vec3 support = A.verts[idxA] - B.verts[idxB];
+
+    //     /* Check convergence */
+    //     Real supportDistance = support.dot(v);
+
+    //     // Check termination
+    //     if (abs(supportDistance - distance) <= epsRel) {
+    //         upperBound  = supportDistance;
+    //         lowerBound  = distance;
+    //         bestFaceIdx = closestIdx;
+    //         break;
+    //     }
+
+    //     if (distance > upperBound) {
+    //         break;
+    //     }
+
+    //     // Check update
+    //     if (supportDistance < upperBound) {
+    //         upperBound  = supportDistance;
+    //         lowerBound  = distance;
+    //         bestFaceIdx = closestIdx;
+    //     }
+
+    //     /* Add new vertex via reconstructing faces */
+    //     bool nondegenerate = true;
+    //     Vec3 apex          = support;
+    //     if (supportDistance - distance < epsRel) {
+    //         nondegenerate = false;
+    //     }
+
+    //     // Reconstruct faces
+    //     // replaceTriangle(, int faceIdx, const std::vector<Vec3> &vertices, std::vector<EPATriangle> &triangles)
+    // }
+}
